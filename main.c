@@ -239,13 +239,13 @@ int main(void) {
     for (size_t i = 0; i < json.count; ++i) {
         JSON_Element j = json.items[i];
         if (j.kind == JSON_STRING) {
-          nob_log(INFO, "\nkey: %s\nvalue: "SV_Fmt, j.key.data, SV_Arg(j.value.jstring));
+          nob_log(INFO, "\nkey: "SV_Fmt"\nvalue: "SV_Fmt, SV_Arg(j.key), SV_Arg(j.value.jstring));
         } else if (j.kind == JSON_NUM) {
-          nob_log(INFO, "\nkey: %s\nvalue: %f", j.key.data, j.value.jnum);
+          nob_log(INFO, "\nkey: "SV_Fmt"\nvalue: %f", SV_Arg(j.key), j.value.jnum);
         } else if (j.kind == JSON_BOOL) {
-          nob_log(INFO, "\nkey: %s\nvalue: %d", j.key.data, j.value.jbool);
+          nob_log(INFO, "\nkey: "SV_Fmt"\nvalue: %d", SV_Arg(j.key), j.value.jbool);
         } else if (j.kind == JSON_NULL) {
-          nob_log(INFO, "\nkey: %s\nvalue: null", j.key.data);
+          nob_log(INFO, "\nkey: "SV_Fmt"\nvalue: null", SV_Arg(j.key));
         }
     }
 
