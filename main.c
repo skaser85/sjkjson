@@ -153,7 +153,7 @@ void token_skip(Tokens* tokens) {
   UNUSED(t);
 }
 
-void ParseTokens(Tokens* tokens, JSON_Elements* root) {
+void ParseTokens(Tokens* tokens, JSON_Element* root) {
   Token* t = token_get_next(tokens);
   while (t) {
     switch (t->kind) {
@@ -168,13 +168,17 @@ void ParseTokens(Tokens* tokens, JSON_Elements* root) {
           JSON_Element* j = make_json_element(JSON_NONE, &t->value);
           da_append(root, *j);
         } else {
-          JSON_Element* j = &da_last(root);
-          if (j->kind == JSON_NONE && j->key.count > 0) {
-            j->kind = JSON_STRING;
-            j->value.jstring = *sv_dup(t->value);
-          } else if (j->kind == JSON_ARRAY) {
-            JSON_Element* e = make_json_element(JSON_STRING, &t->value);
-            da_append(j->value.jarray, *e);
+          if (root->count > 0) {
+            JSON_Element* j = &da_last(root);
+            if (j->kind == JSON_NONE && j->key.count > 0) {
+              j->kind = JSON_STRING;
+              j->value.jstring = *sv_dup(t->value);
+            } else if (j->kind == JSON_ARRAY) {
+              JSON_Element* e = make_json_element(JSON_STRING, &t->value);
+              da_append(j->value.jarray, *e);
+            }
+          } else {
+            
           }
         }
       } break;
@@ -204,35 +208,17 @@ void ParseTokens(Tokens* tokens, JSON_Elements* root) {
       } break;
       case TOKEN_OPEN_SQ: {
         if (root->count > 0) {
-          // TODO: make this work next       
+           
         } else {
-          JSON_Element* j = make_json_element(JSON_ARRAY, NULL); 
-          da_append(root, *j);
-          ParseTokens(tokens, j->value.jarray);
+          root->kind = JSON_ARRAY;
+          root->value.jarray = make_json_elements();
         }
       } break;
       case TOKEN_CLOSE_SQ: {
-        root->open = false;
-        return;
       } break;
       case TOKEN_OPEN_CURLY: {
-        if (root->count > 0) {
-          JSON_Element* last = &da_last(root);
-          assert(root->open && "Root JSON Object is not open!");
-          if (last->kind == JSON_NONE) {
-            last->kind = JSON_OBJECT;
-            last->value.jobject = make_json_elements();
-            ParseTokens(tokens, last->value.jobject);
-          }
-        } else {
-          JSON_Element* j = make_json_element(JSON_OBJECT, NULL);
-          da_append(root, *j);
-          ParseTokens(tokens, j->value.jobject);
-        }
       } break;
       case TOKEN_CLOSE_CURLY: {
-        root->open = false;
-        return;
       } break;
       case TOKEN_COLON: {} break;
       case TOKEN_COMMA: {} break;
@@ -357,7 +343,8 @@ void print_tokens(Tokens tokens) {
 }
 
 int main(void) {
-  const char* src_file_path = "./products.json";
+  //const char* src_file_path = "./products.json";
+  const char* src_file_path = "./simple.json";
 
   String_Builder sb = {0};
   if (!read_entire_file(src_file_path, &sb)) return 1;
@@ -366,8 +353,8 @@ int main(void) {
   Tokenize(sb, &tokens); 
   //print_tokens(tokens);
   
-  JSON_Elements json = {0};
-  ParseTokens(&tokens, &json);
+  JSON_Element* json = make_json_element(JSON_NONE, NULL); 
+  ParseTokens(&tokens, json);
   print_json(json);
 
   return 0;
