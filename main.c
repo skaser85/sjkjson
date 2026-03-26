@@ -4,6 +4,8 @@
 #define NOB_IMPLEMENTATION
 #include "./nob.h"
 
+#define PRETTY_PRINT_SPACES_AMT 4
+
 typedef enum {
   TOKEN_STRING,
   TOKEN_NUM,
@@ -72,7 +74,6 @@ struct JSON_Elements {
   JSON_Element* items;
   size_t count;
   size_t capacity;
-  bool open;
 };
 
 const char* get_token_kind(Token_Kind kind) {
@@ -107,6 +108,9 @@ JSON_Element* make_json_element(JSON_Kind kind, String_View* key) {
     j->value.jarray = make_json_elements();
   if (kind == JSON_OBJECT)
     j->value.jobject = make_json_elements();
+  j->value.jstring = sv_from_cstr("");
+  j->value.jnum = 0;
+  j->value.jbool = false;
   if (key && key->count > 0)
     j->key = *sv_dup(*key);
   return j;
@@ -115,7 +119,6 @@ JSON_Element* make_json_element(JSON_Kind kind, String_View* key) {
 JSON_Elements* make_json_elements() {
   JSON_Elements* j = (JSON_Elements*)malloc(sizeof(JSON_Element));
   memset(j, 0, sizeof(*j));
-  j->open = true;
   return j;
 }
 
@@ -153,7 +156,25 @@ void token_skip(Tokens* tokens) {
   UNUSED(t);
 }
 
-void ParseTokens(Tokens* tokens, JSON_Element* root) {
+double sv_to_double(String_View sv) {
+  const char* str = temp_sv_to_cstr(sv); 
+  char* endPtr;
+  double d = strtod(str, &endPtr);
+  if (endPtr == str) {
+    nob_log(ERROR, "Could not convert %s into a double!", str);
+    return 0;
+  }
+  return d;
+}
+
+JSON_Element* get_last(JSON_Elements* root) {
+  if (root->count == 0)
+    return NULL;
+  return &da_last(root);
+}
+
+JSON_Elements* ParseTokens(Tokens* tokens) {
+  JSON_Elements* root = make_json_elements();
   Token* t = token_get_next(tokens);
   while (t) {
     switch (t->kind) {
@@ -161,64 +182,82 @@ void ParseTokens(Tokens* tokens, JSON_Element* root) {
         Token* next = token_peek_next(tokens);
         if (!next) {
           nob_log(ERROR, "Could not peek the next token!");
-          return;
+          return root;
         }
         // check if this STRING is a key
         if (next->kind == TOKEN_COLON) {
           JSON_Element* j = make_json_element(JSON_NONE, &t->value);
           da_append(root, *j);
         } else {
-          if (root->count > 0) {
-            JSON_Element* j = &da_last(root);
-            if (j->kind == JSON_NONE && j->key.count > 0) {
-              j->kind = JSON_STRING;
-              j->value.jstring = *sv_dup(t->value);
-            } else if (j->kind == JSON_ARRAY) {
-              JSON_Element* e = make_json_element(JSON_STRING, &t->value);
-              da_append(j->value.jarray, *e);
-            }
+          JSON_Element* last = get_last(root);
+          if (last && last->kind == JSON_NONE) {
+            last->kind = JSON_STRING;
+            last->value.jstring = *sv_dup(t->value);
           } else {
-            
+            JSON_Element* j = make_json_element(JSON_STRING, NULL);
+            j->value.jstring = *sv_dup(t->value);
+            da_append(root, *j);
           }
         }
       } break;
       case TOKEN_NUM: {
-        if (root->count > 0) {
-          JSON_Element* j = &da_last(root);
-          j->kind = JSON_NUM;
-          char* endPtr;
-          j->value.jnum = strtod(t->value.data, &endPtr);
-          if (endPtr == t->value.data) {
-            nob_log(ERROR, "Could not convert %s into a double!", t->value.data);
-          }
+        JSON_Element* last = get_last(root);
+        if (last && last->kind == JSON_NONE) {
+          last->kind = JSON_NUM;
+          last->value.jnum = sv_to_double(t->value); 
+        } else {
+          JSON_Element* j = make_json_element(JSON_NUM, NULL);
+          j->value.jnum = sv_to_double(t->value);
+          da_append(root, *j);
         }
       } break;
       case TOKEN_BOOL: {
-        if (root->count > 0) {
-          JSON_Element* j = &da_last(root);
-          j->kind = JSON_BOOL;
+        JSON_Element* last = get_last(root);
+        if (last && last->kind == JSON_NONE) {
+          last->kind = JSON_BOOL;
+          last->value.jbool = strcmp(t->value.data, "true") == 0 ? true : false;
+        } else {
+          JSON_Element* j = make_json_element(JSON_BOOL, NULL);
           j->value.jbool = strcmp(t->value.data, "true") == 0 ? true : false;
+          da_append(root, *j);
         }
       } break;
       case TOKEN_NULL: {
-        if (root->count > 0) {
-          JSON_Element* j = &da_last(root);
-          j->kind = JSON_NULL;
+        JSON_Element* last = get_last(root);
+        if (last && last->kind == JSON_NONE) {
+          last->kind = JSON_NULL;
+        } else {
+          JSON_Element* j = make_json_element(JSON_NULL, NULL);
+          da_append(root, *j);
         }
       } break;
       case TOKEN_OPEN_SQ: {
-        if (root->count > 0) {
-           
+        JSON_Element* last = get_last(root);
+        if (last && last->kind == JSON_NONE) {
+          last->kind = JSON_ARRAY;
+          last->value.jarray = ParseTokens(tokens);
         } else {
-          root->kind = JSON_ARRAY;
-          root->value.jarray = make_json_elements();
+          JSON_Element* j = make_json_element(JSON_ARRAY, NULL);
+          j->value.jobject = ParseTokens(tokens);
+          da_append(root, *j);
         }
       } break;
       case TOKEN_CLOSE_SQ: {
+        return root;
       } break;
       case TOKEN_OPEN_CURLY: {
+        JSON_Element* last = get_last(root);
+        if (last && last->kind == JSON_NONE) {
+          last->kind = JSON_OBJECT;
+          last->value.jobject = ParseTokens(tokens);
+        } else {
+          JSON_Element* j = make_json_element(JSON_OBJECT, NULL);
+          j->value.jobject = ParseTokens(tokens);
+          da_append(root, *j);
+        }
       } break;
       case TOKEN_CLOSE_CURLY: {
+        return root;
       } break;
       case TOKEN_COLON: {} break;
       case TOKEN_COMMA: {} break;
@@ -226,6 +265,7 @@ void ParseTokens(Tokens* tokens, JSON_Element* root) {
     }
     t = token_get_next(tokens);
   }
+  return root;
 }
 
 const char* sb_to_cstr(String_Builder *sb) {
@@ -312,22 +352,80 @@ void Tokenize(String_Builder file_data, Tokens* tokens) {
 
 }
 
-void print_json(JSON_Elements json) {
+void get_spaces(String_Builder* sb, size_t indent_amt) {
+  for (size_t i = 0; i < indent_amt; ++i) {
+    sb_appendf(sb, " ");
+  }
+}
+
+void print_sb(String_Builder sb) {
+  String_View sv = sb_to_sv(sb);
+  nob_log(INFO, SV_Fmt, SV_Arg(sv));
+}
+
+void print_json_element(JSON_Element j, size_t indent_amt) {
+  String_Builder sb = {0};
+  get_spaces(&sb, indent_amt);
+  if (j.key.count > 0)
+    sb_appendf(&sb, "\""SV_Fmt"\": ", SV_Arg(j.key));
+  switch (j.kind) {
+    case JSON_STRING: sb_appendf(&sb, "\""SV_Fmt"\"", SV_Arg(j.value.jstring)); break;
+    case JSON_NUM: sb_appendf(&sb, "%f", j.value.jnum); break;
+    case JSON_BOOL: sb_appendf(&sb, "%s", j.value.jbool ? "true" : "false"); break;
+    case JSON_NULL: sb_appendf(&sb, "null"); break;
+    default: {};
+  }
+  print_sb(sb);
+}
+
+void print_json(JSON_Elements json, size_t indent_amt) {
   if (json.count == 0) return;
   for (size_t i = 0; i < json.count; ++i) {
     JSON_Element j = json.items[i];
     switch (j.kind) {
-    case JSON_STRING: nob_log(INFO, "\nkey: "SV_Fmt"\nvalue: "SV_Fmt, SV_Arg(j.key), SV_Arg(j.value.jstring)); break;
-    case JSON_NUM: nob_log(INFO, "\nkey: "SV_Fmt"\nvalue: %f", SV_Arg(j.key), j.value.jnum); break;
-    case JSON_BOOL: nob_log(INFO, "\nkey: "SV_Fmt"\nvalue: %d", SV_Arg(j.key), j.value.jbool); break;
-    case JSON_NULL: nob_log(INFO, "\nkey: "SV_Fmt"\nvalue: null", SV_Arg(j.key)); break;
-    case JSON_ARRAY: print_json(*j.value.jarray); break;
-    case JSON_OBJECT: print_json(*j.value.jobject); break;
-    default: {};
+    case JSON_ARRAY: {
+      String_Builder sb = {0};
+      get_spaces(&sb, indent_amt);
+      if (j.key.count > 0) { 
+        sb_appendf(&sb, "\""SV_Fmt"\": [", SV_Arg(j.key));
+      } else {
+        sb_appendf(&sb, "[");
+      }
+      print_sb(sb);
+      
+
+      indent_amt += PRETTY_PRINT_SPACES_AMT;
+      print_json(*j.value.jarray, indent_amt);
+      indent_amt -= PRETTY_PRINT_SPACES_AMT;
+      
+      sb.count = 0;
+      get_spaces(&sb, indent_amt);
+      sb_appendf(&sb, "]");
+      print_sb(sb);
+    } break;
+    case JSON_OBJECT: {
+      String_Builder sb = {0};
+      get_spaces(&sb, indent_amt);
+      if (j.key.count > 0) { 
+        sb_appendf(&sb, "\""SV_Fmt"\": {", SV_Arg(j.key));
+      } else {
+        sb_appendf(&sb, "{");
+      }
+      print_sb(sb);
+      
+      indent_amt += PRETTY_PRINT_SPACES_AMT;
+      print_json(*j.value.jarray, indent_amt);
+      indent_amt -= PRETTY_PRINT_SPACES_AMT;
+      
+      sb.count = 0;
+      get_spaces(&sb, indent_amt);
+      sb_appendf(&sb, "}");
+      print_sb(sb);
+    } break;
+    default: print_json_element(j, indent_amt);
     }
   }
 }
-
 
 void print_tokens(Tokens tokens) {
   if (tokens.count == 0) return;
@@ -343,8 +441,9 @@ void print_tokens(Tokens tokens) {
 }
 
 int main(void) {
+  const char* src_file_path = "./64KB.json";
   //const char* src_file_path = "./products.json";
-  const char* src_file_path = "./simple.json";
+  //const char* src_file_path = "./simple.json";
 
   String_Builder sb = {0};
   if (!read_entire_file(src_file_path, &sb)) return 1;
@@ -353,9 +452,8 @@ int main(void) {
   Tokenize(sb, &tokens); 
   //print_tokens(tokens);
   
-  JSON_Element* json = make_json_element(JSON_NONE, NULL); 
-  ParseTokens(&tokens, json);
-  print_json(json);
+  JSON_Elements* json = ParseTokens(&tokens);
+  print_json(*json, 0);
 
   return 0;
 }
