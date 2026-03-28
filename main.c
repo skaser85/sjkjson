@@ -217,12 +217,18 @@ double sv_to_double(String_View sv) {
   return d;
 }
 
+String_View* sv_empty() {
+  String_View* sv = (String_View*)malloc(sizeof(String_View));
+  memset(sv, 0, sizeof(*sv));
+  return sv;
+}
+
 JSON_Element* get_last(JSON_Elements* root) {
   if (root->count == 0)
     return NULL;
   return &da_last(root);
 }
-/*
+
 JSON_Elements* ParseTokens(Tokens* tokens) {
   JSON_Elements* root = make_json_elements();
   Token* t = token_get_next(tokens);
@@ -285,10 +291,10 @@ JSON_Elements* ParseTokens(Tokens* tokens) {
         JSON_Element* last = get_last(root);
         if (last && last->kind == JSON_NONE) {
           last->kind = JSON_ARRAY;
-          last->value.jarray = ParseTokens(tokens);
+          last->value.jarray = ParseTokens(tokens); 
         } else {
           JSON_Element* j = make_json_element(JSON_ARRAY, NULL);
-          j->value.jobject = ParseTokens(tokens);
+          j->value.jarray = ParseTokens(tokens);
           da_append(root, *j);
         }
       } break;
@@ -315,9 +321,10 @@ JSON_Elements* ParseTokens(Tokens* tokens) {
     }
     t = token_get_next(tokens);
   }
-  return root;
+
+  return root; 
 }
-*/
+
 const char* sb_to_cstr(String_Builder *sb) {
   char* s = (char*)malloc(sizeof(char)*sb->count+1);
   for (size_t i = 0; i < sb->count; ++i){
@@ -451,13 +458,13 @@ void print_json_collection(JSON_Element* j, size_t indent_amt) {
     sb_append(&sb, opening);
   }
   print_sb(sb);
-  
+
   indent_amt += PRETTY_PRINT_SPACES_AMT;
   for (size_t i = 0; i < els->count; ++i) {
     print_json(&els->items[i], indent_amt);
   }
   indent_amt -= PRETTY_PRINT_SPACES_AMT;
-  
+
   sb.count = 0;
   get_spaces(&sb, indent_amt);
   sb_append(&sb, closing);
@@ -476,19 +483,31 @@ void print_tokens(Tokens tokens) {
     ++i;
   }
 }
-/*
+
 JSON_Element* parse_json_file(const char* src_file_path) {
   String_Builder sb = {0};
   if (!read_entire_file(src_file_path, &sb)) return NULL;
 
   Tokens tokens = {0};
   Tokenize(sb, &tokens); 
-  
+
   JSON_Elements* json = ParseTokens(&tokens);
 
-  return json;
+  JSON_Element* j = NULL;
+
+  if (json->count > 0) {
+    if (json->items[0].kind == JSON_ARRAY) {
+      j = make_json_element(JSON_ARRAY, sv_empty());
+      j->value.jarray = json; 
+    } else if (json->items[0].kind == JSON_OBJECT) {
+      j = make_json_element(JSON_OBJECT, sv_empty());
+      j->value.jarray = json; 
+    }
+  }
+
+  return j;
 }
-*/
+
 void append_to_json(JSON_Elements* root, JSON_Element* j) {
   da_append(root, *j);
 }
@@ -513,7 +532,7 @@ JSON_Elements* pull_root(Roots* roots) {
 
 JSON_Element* test_make_json() {
   Roots roots = {0};
-  
+
   JSON_Element* r = make_json_array("");
   JSON_Elements* root = push_root(&roots, r->value.jarray);
 
@@ -527,10 +546,10 @@ JSON_Element* test_make_json() {
   append_to_json(root,  make_json_num("area", 551695));
   append_to_json(root, make_json_string("currency", "Euro"));
   JSON_Element* lang = make_json_array("languages");
+  append_to_json(root, lang);
   root = push_root(&roots, lang->value.jarray);
   append_to_json(root, make_json_string("", "French")); 
   root = pull_root(&roots);
-  append_to_json(root, lang);
   append_to_json(root, make_json_string("region", "Europe"));
   append_to_json(root, make_json_string("subregion", "Western Europe"));
   append_to_json(root, make_json_string("subregion", "https://upload.wikimedia.org/wikipedia/commons/c/c3/Flag_of_France.svg"));
@@ -541,7 +560,9 @@ JSON_Element* test_make_json() {
 }
 
 int main(void) {
-  JSON_Element* json = test_make_json();
+  const char* src_file_path = "./products.json";
+  JSON_Element* json = parse_json_file(src_file_path); 
+  //JSON_Element* json = test_make_json();
   print_json(json, 0);
 
   return 0;
