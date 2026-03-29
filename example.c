@@ -2,7 +2,7 @@
 #include "sjkjson.h"
 
 JSON_Element* test_make_json() {
-  Roots roots = {0};
+  RootStack roots = {0};
 
   JSON_Element* r = make_json_array("");
   JSON_Elements* root = push_root(&roots, r->value.jarray);

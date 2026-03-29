@@ -57,7 +57,7 @@ typedef struct {
   SJKJSON_JSON_Elements** items;
   size_t count;
   size_t capacity;
-} SJKJSON_Roots;
+} SJKJSON_RootStack;
 
 struct SJKJSON_JSON_Element {
   SJKJSON_JSON_Kind kind;
@@ -80,9 +80,16 @@ struct SJKJSON_JSON_Elements {
 SJKJSONDEF SJKJSON_JSON_Element* parse_json_file(const char* src_file_path);
 SJKJSONDEF void SJKJSON_dump_json(String_Builder* sb, SJKJSON_JSON_Element* json, size_t indent_amt);
 SJKJSONDEF void append_to_json(SJKJSON_JSON_Elements* root, SJKJSON_JSON_Element* j);
-SJKJSONDEF SJKJSON_JSON_Elements* push_root(SJKJSON_Roots* roots, SJKJSON_JSON_Elements* new_root);
-SJKJSONDEF SJKJSON_JSON_Elements* pull_root(SJKJSON_Roots* roots); 
+SJKJSONDEF SJKJSON_JSON_Elements* push_root(SJKJSON_RootStack* roots, SJKJSON_JSON_Elements* new_root);
+SJKJSONDEF SJKJSON_JSON_Elements* pull_root(SJKJSON_RootStack* roots); 
 SJKJSONDEF bool write_sb_to_file(const char* file_path, String_Builder sb);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_make_json_array(const char* key);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_make_json_object(const char* key);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_make_json_null(const char* key);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_make_json_bool(const char* key, bool b);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_make_json_num(const char* key, double num);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_make_json_string(const char* key, const char* value);
+
 #endif // SJKJSON_H_
 
 // ---------------PRIVATE---------------
@@ -156,46 +163,6 @@ String_View* make_sv(const char* str) {
   sv->count = strlen(str)-1;
   return sv;
 }
-
-SJKJSON_JSON_Element* make_json_string(const char* key, const char* value) {
-  String_View keysv = sv_from_cstr(key);
-  SJKJSON_JSON_Element* j = make_json_element(JSON_STRING, &keysv);
-  j->value.jstring = sv_from_cstr(value);
-  return j;
-}
-
-SJKJSON_JSON_Element* make_json_num(const char* key, double num) {
-  String_View keysv = sv_from_cstr(key);
-  SJKJSON_JSON_Element* j = make_json_element(JSON_NUM, &keysv);
-  j->value.jnum = num;
-  return j;
-}
-
-SJKJSON_JSON_Element* make_json_bool(const char* key, bool b) {
-  String_View keysv = sv_from_cstr(key);
-  SJKJSON_JSON_Element* j = make_json_element(JSON_BOOL, &keysv);
-  j->value.jbool = b;
-  return j;
-}
-
-SJKJSON_JSON_Element* make_json_null(const char* key) {
-  String_View keysv = sv_from_cstr(key);
-  SJKJSON_JSON_Element* j = make_json_element(JSON_NULL, &keysv);
-  return j;
-}
-
-SJKJSON_JSON_Element* make_json_object(const char* key) {
-  String_View keysv = sv_from_cstr(key);
-  SJKJSON_JSON_Element* j = make_json_element(JSON_OBJECT, &keysv);
-  return j;
-}
-
-SJKJSON_JSON_Element* make_json_array(const char* key) {
-  String_View keysv = sv_from_cstr(key);
-  SJKJSON_JSON_Element* j = make_json_element(JSON_ARRAY, &keysv);
-  return j;
-}
-
 bool sb_eq_jbool(String_Builder sb) {
   if (sb.count != 4 && sb.count != 5) return false;
   String_View sv = sb_to_sv(sb);
@@ -562,12 +529,12 @@ SJKJSONDEF void SJKJSON_append_to_json(SJKJSON_JSON_Elements* root, SJKJSON_JSON
   da_append(root, *j);
 }
 
-SJKJSONDEF SJKJSON_JSON_Elements* SJKJSON_push_root(SJKJSON_Roots* roots, SJKJSON_JSON_Elements* new_root) {
+SJKJSONDEF SJKJSON_JSON_Elements* SJKJSON_push_root(SJKJSON_RootStack* roots, SJKJSON_JSON_Elements* new_root) {
   da_append(roots, new_root);
   return new_root;
 }
 
-SJKJSONDEF SJKJSON_JSON_Elements* SJKJSON_pull_root(SJKJSON_Roots* roots) {
+SJKJSONDEF SJKJSON_JSON_Elements* SJKJSON_pull_root(SJKJSON_RootStack* roots) {
   if (roots->count == 0) return NULL;
   roots->count -= 1;
   if (roots->count == 0) return NULL;
@@ -578,6 +545,45 @@ SJKJSONDEF bool SJKJSON_write_sb_to_file(const char* file_path, String_Builder s
   return write_entire_file(file_path, sb.items, sb.count);
 }
 
+SJKJSON_JSON_Element* SJKJSON_make_json_string(const char* key, const char* value) {
+  String_View keysv = sv_from_cstr(key);
+  SJKJSON_JSON_Element* j = make_json_element(JSON_STRING, &keysv);
+  j->value.jstring = sv_from_cstr(value);
+  return j;
+}
+
+SJKJSON_JSON_Element* SJKJSON_make_json_num(const char* key, double num) {
+  String_View keysv = sv_from_cstr(key);
+  SJKJSON_JSON_Element* j = make_json_element(JSON_NUM, &keysv);
+  j->value.jnum = num;
+  return j;
+}
+
+SJKJSON_JSON_Element* SJKJSON_make_json_bool(const char* key, bool b) {
+  String_View keysv = sv_from_cstr(key);
+  SJKJSON_JSON_Element* j = make_json_element(JSON_BOOL, &keysv);
+  j->value.jbool = b;
+  return j;
+}
+
+SJKJSON_JSON_Element* SJKJSON_make_json_null(const char* key) {
+  String_View keysv = sv_from_cstr(key);
+  SJKJSON_JSON_Element* j = make_json_element(JSON_NULL, &keysv);
+  return j;
+}
+
+SJKJSON_JSON_Element* SJKJSON_make_json_object(const char* key) {
+  String_View keysv = sv_from_cstr(key);
+  SJKJSON_JSON_Element* j = make_json_element(JSON_OBJECT, &keysv);
+  return j;
+}
+
+SJKJSON_JSON_Element* SJKJSON_make_json_array(const char* key) {
+  String_View keysv = sv_from_cstr(key);
+  SJKJSON_JSON_Element* j = make_json_element(JSON_ARRAY, &keysv);
+  return j;
+}
+
 #endif // SJKJSON_IMPLEMENTATION
 
 #ifndef SJKJSON_NO_PREFIX
@@ -585,13 +591,19 @@ SJKJSONDEF bool SJKJSON_write_sb_to_file(const char* file_path, String_Builder s
   #ifndef SJKJSON_YES_PREFIX
     #define JSON_Element SJKJSON_JSON_Element
     #define JSON_Elements SJKJSON_JSON_Elements
-    #define Roots SJKJSON_Roots
+    #define RootStack SJKJSON_RootStack
     #define parse_json_file SJKJSON_parse_json_file
     #define dump_json SJKJSON_dump_json
     #define write_sb_to_file SJKJSON_write_sb_to_file 
     #define append_to_json SJKJSON_append_to_json
     #define push_root SJKJSON_push_root
     #define pull_root SJKJSON_pull_root
+    #define make_json_string SJKJSON_make_json_string
+    #define make_json_num SJKJSON_make_json_num
+    #define make_json_bool SJKJSON_make_json_bool
+    #define make_json_null SJKJSON_make_json_null
+    #define make_json_array SJKJSON_make_json_array
+    #define make_json_object SJKJSON_make_json_object
   #endif // SJKJSON_YES_PREFIX
 #endif // SJKJSON_NO_PREFIX
 
