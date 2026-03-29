@@ -4,30 +4,26 @@
 JSON_Element* test_make_json() {
   RootStack roots = {0};
 
-  JSON_Element* r = make_json_array("");
-  JSON_Elements* root = push_root(&roots, r->value.jarray);
+  JSON_Element* root = push_array(&roots, "");
+    root = push_object(&roots, "");
 
-  JSON_Element* o1 = make_json_object("");
-  append_to_json(root, o1);
-  root = push_root(&roots, o1->value.jobject);
+      append_to_json(root, make_json_string("name", "France"));
+      append_to_json(root, make_json_string("capital", "Paris"));
+      append_to_json(root, make_json_num("population", 67364357));
+      append_to_json(root,  make_json_num("area", 551695));
+      append_to_json(root, make_json_string("currency", "Euro"));
 
-  append_to_json(root, make_json_string("name", "France"));
-  append_to_json(root, make_json_string("capital", "Paris"));
-  append_to_json(root, make_json_num("population", 67364357));
-  append_to_json(root,  make_json_num("area", 551695));
-  append_to_json(root, make_json_string("currency", "Euro"));
-  JSON_Element* lang = make_json_array("languages");
-  append_to_json(root, lang);
-  root = push_root(&roots, lang->value.jarray);
-  append_to_json(root, make_json_string("", "French")); 
-  root = pull_root(&roots);
-  append_to_json(root, make_json_string("region", "Europe"));
-  append_to_json(root, make_json_string("subregion", "Western Europe"));
-  append_to_json(root, make_json_string("subregion", "https://upload.wikimedia.org/wikipedia/commons/c/c3/Flag_of_France.svg"));
+        root = push_array(&roots, "languages"); 
+          append_to_json(root, make_json_string("", "French")); 
+        root = pull_root(&roots);
+      
+      append_to_json(root, make_json_string("region", "Europe"));
+      append_to_json(root, make_json_string("subregion", "Western Europe"));
+      append_to_json(root, make_json_string("subregion", "https://upload.wikimedia.org/wikipedia/commons/c/c3/Flag_of_France.svg"));
 
-  root = pull_root(&roots);
-
-  return r;
+    root = pull_root(&roots);
+   root = pull_root(&roots);
+  return root;
 }
 
 int main(void) {
