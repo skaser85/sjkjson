@@ -74,11 +74,13 @@ struct SJKJSON_JSON_Elements {
   size_t capacity;
 };
 
-SJKJSONDEF SJKJSON_JSON_Element* parse_json_file(const char* src_file_path);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_parse_json_file(const char* src_file_path);
 SJKJSONDEF void SJKJSON_dump_json(String_Builder* sb, SJKJSON_JSON_Element* json, size_t indent_amt);
-SJKJSONDEF void append_to_json(SJKJSON_JSON_Element* root, SJKJSON_JSON_Element* j);
-SJKJSONDEF SJKJSON_JSON_Elements* push_root(SJKJSON_RootStack* roots, SJKJSON_JSON_Elements* new_root);
-SJKJSONDEF SJKJSON_JSON_Elements* pull_root(SJKJSON_RootStack* roots); 
+SJKJSONDEF void SJKJSON_append_to_json(SJKJSON_JSON_Element* root, SJKJSON_JSON_Element* j);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_push_root(SJKJSON_RootStack* roots, SJKJSON_JSON_Element* new_root);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_push_object(SJKJSON_RootStack* roots, const char* key);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_push_array(SJKJSON_RootStack* roots, const char* key);
+SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_pull_root(SJKJSON_RootStack* roots); 
 SJKJSONDEF bool write_sb_to_file(const char* file_path, String_Builder sb);
 SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_make_json_array(const char* key);
 SJKJSONDEF SJKJSON_JSON_Element* SJKJSON_make_json_object(const char* key);
